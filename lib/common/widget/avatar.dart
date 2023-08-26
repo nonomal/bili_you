@@ -4,7 +4,6 @@ import 'package:bili_you/common/models/local/reply/official_verify.dart';
 import 'package:bili_you/common/widget/cached_network_image.dart';
 import 'package:bili_you/index.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 class AvatarWidget extends StatelessWidget {
   const AvatarWidget(
@@ -36,12 +35,14 @@ class AvatarWidget extends StatelessWidget {
                   cacheWidth: cacheWidthHeight ??
                       (MediaQuery.of(context).devicePixelRatio * radius * 2)
                           .toInt(),
-                  cacheHeight: cacheWidthHeight,
+                  cacheHeight: cacheWidthHeight ??
+                      (MediaQuery.of(context).devicePixelRatio * radius * 2)
+                          .toInt(),
                   placeholder: () => Container(
                         color: Theme.of(context).colorScheme.primaryContainer,
                       ),
                   imageUrl: avatarUrl,
-                  cacheManager: CacheManager(Config(CacheKeys.othersFaceKey))),
+                  cacheManager: CacheUtils.othersFaceCacheManager),
             ),
             if (officialVerifyType != null &&
                 officialVerifyType != OfficialVerifyType.none)

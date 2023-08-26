@@ -3,13 +3,13 @@ class ApiConstants {
       'https://api.github.com/repos/lucinhu/bili_you/releases/latest';
 
   static const String userAgent =
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36 Edg/112.0.0.0';
-  static const String mobileUserAgent =
-      'Mozilla/5.0 (iPhone; CPU iPhone OS 14_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/7.0.18(0x1700122f) NetType/3G Language/zh_CN';
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_3_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15';
 
   static const String bilibiliBase = "https://www.bilibili.com";
 
   static const String apiBase = "https://api.bilibili.com";
+
+  static const String apiLiveBase = "https://api.live.bilibili.com";
 
   static const String passportBase = "https://passport.bilibili.com";
 
@@ -31,7 +31,7 @@ class ApiConstants {
   ///
   ///test: https://api.bilibili.com/x/web-interface/index/top/feed/rcmd?feed_version=V3&ps=12&fresh_idx=1
   static const String recommendItems =
-      "$apiBase/x/web-interface/index/top/feed/rcmd";
+      "$apiBase/x/web-interface/wbi/index/top/feed/rcmd";
 
   ///申请人机验证验证码
   ///?source=main_web
@@ -43,7 +43,7 @@ class ApiConstants {
   ///test: http://passtport.bilibili.com/x/passport-login/web/sms/send
   static const String smsCode = "$passportBase/x/passport-login/web/sms/send";
 
-  ///短信验证码登陆
+  ///短信验证码登录
   ///post请求
   static const String smsLogin = "$passportBase/x/passport-login/web/login/sms";
 
@@ -52,11 +52,15 @@ class ApiConstants {
   static const String qrcodeGenerate =
       "$passportBase/x/passport-login/web/qrcode/generate";
 
-  ///密码登陆前，获取publicKey和hash
+  ///扫码登录
+  static const String qrcodeLogin =
+      "$passportBase/x/passport-login/web/qrcode/poll";
+
+  ///密码登录前，获取publicKey和hash
   static const String passwordPublicKeyHash =
       "$passportBase/x/passport-login/web/key";
 
-  ///密码登陆
+  ///密码登录
   static const String passwordLogin =
       "$passportBase/x/passport-login/web/login";
 
@@ -98,9 +102,6 @@ class ApiConstants {
   static const String defualtSearchWord =
       "$apiBase/x/web-interface/wbi/search/default";
 
-  ///热搜网页版
-  static const String hotWordsWeb = "$sSearchBase/main/hotword";
-
   ///热搜手机版(现在使用的是这个)
   ///test: http://app.bilibili.com/x/v2/search/trending/ranking
   static const String hotWordsMob = "$appBase/x/v2/search/trending/ranking";
@@ -120,6 +121,9 @@ class ApiConstants {
   ///评论的回复
   static const String replyReply = "$apiBase/x/v2/reply/reply";
 
+  ///发表评论
+  static const String addReply = "$apiBase/x/v2/reply/add";
+
   ///弹幕
   static const String danmaku = "$apiBase/x/v2/dm/web/seg.so";
 
@@ -130,9 +134,12 @@ class ApiConstants {
   static const String userVideoSearch = "$apiBase/x/space/wbi/arc/search";
 
   ///动态页面
-  ///test: https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?type=all&page=1
+  ///test: https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?type=all&page=1&features=itemOpusStyle
   static const String dynamicFeed =
       "$apiBase/x/polymer/web-dynamic/v1/feed/all";
+
+  ///动态页Up主面板
+  static const String dynamicAuthorList = "$apiBase/x/polymer/web-dynamic/v1/portal";
 
   ///点赞
   static const String like = "$apiBase/x/web-interface/archive/like";
@@ -164,4 +171,35 @@ class ApiConstants {
   ///浏览/播放历史记录
   ///test: https://api.bilibili.com/x/web-interface/history/cursor
   static const String viewHistory = "$apiBase/x/web-interface/history/cursor";
+
+  ///上报历史记录
+  ///test: https://api.bilibili.com/x/v2/history/report
+  static const String reportHistory = "$apiBase/x/v2/history/report";
+
+  ///热门视频
+  ///test: https://api.bilibili.com/x/web-interface/popular?ps=20&pn=1
+  static const String popularVideos = "$apiBase/x/web-interface/popular";
+
+  ///用户推荐直播
+  ///test: https://api.live.bilibili.com/xlive/web-interface/v1/second/getUserRecommend?page=1&page_size=30&platform=web
+  static const String userRecommendLive =
+      "$apiLiveBase/xlive/web-interface/v1/second/getUserRecommend";
+
+  ///直播播放链接
+  ///
+  ///[cid] 其实是room_id
+  ///
+  ///[qn] 80:流畅，150:高清，400:蓝光，10000:原画，20000:4K, 30000:杜比
+  ///
+  ///test: https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=6154037&protocol=0,1&format=0,1,2&codec=0,1&qn=150&platform=web&ptype=8&dolby=5&panorama=1
+  ///https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=545068&protocol=0,1&format=0,1,2&codec=0,1&qn=250&platform=web&ptype=8&dolby=5&panorama=1
+  ///
+  static const String livePlayUrl =
+      "$apiLiveBase/xlive/web-room/v2/index/getRoomPlayInfo";
+
+  ///关注列表
+  static const String followings = "$apiBase/x/relation/followings";
+
+  ///粉丝列表
+  static const String followers = "$apiBase/x/relation/followers";
 }

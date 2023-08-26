@@ -8,8 +8,8 @@ import 'package:bili_you/common/models/local/reply/vip.dart';
 import 'package:bili_you/common/models/network/reply/reply.dart' as reply_raw;
 import 'package:bili_you/common/models/network/reply/reply_reply.dart'
     as reply_reply_raw;
+import 'package:bili_you/common/utils/http_utils.dart';
 import 'package:bili_you/common/utils/index.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/local/reply/official_verify.dart';
@@ -20,19 +20,18 @@ class ReplyApi {
       required int pageNum,
       required ReplyType type,
       ReplySort sort = ReplySort.like}) async {
-    var dio = MyDio.dio;
-    var response = await dio.get(ApiConstants.reply,
-        queryParameters: {
-          'oid': oid,
-          'pn': pageNum,
-          'type': type.code,
-          'sort': sort.index
-        },
-        options: Options(responseType: ResponseType.plain));
-    var ret = await compute((data) async {
-      return reply_raw.ReplyResponse.fromRawJson(data);
-    }, response.data);
-    return ret;
+    var response = await HttpUtils().get(
+      ApiConstants.reply,
+      queryParameters: {
+        'oid': oid,
+        'pn': pageNum,
+        'type': type.code,
+        'sort': sort.index
+      },
+    );
+    return await compute(
+        (response) => reply_raw.ReplyResponse.fromJson(response),
+        response.data);
   }
 
   ///原始评论成员数据转评论成员数据
@@ -53,14 +52,14 @@ class ReplyApi {
   }
 
   ///原始评论数据转评论数据
-  static ReplyItem _replyItemRawToReplyItem(reply_raw.ReplyItemRaw raw) {
+  static ReplyItem replyItemRawToReplyItem(reply_raw.ReplyItemRaw raw) {
     //将message中html字符实体改为对应的文字符号
     raw.content?.message = StringFormatUtils.replaceAllHtmlEntitiesToCharacter(
         raw.content?.message ?? "");
     //外显示评论
     List<ReplyItem> preReplies = [];
     for (var i in raw.replies ?? <reply_raw.ReplyItemRaw>[]) {
-      preReplies.add(_replyItemRawToReplyItem(i));
+      preReplies.add(replyItemRawToReplyItem(i));
     }
     //at到的人
     List<ReplyMember> atMembers = [];
@@ -115,7 +114,7 @@ class ReplyApi {
         preReplies: preReplies,
         likeCount: raw.like ?? 0,
         hasLike: raw.action == 1 ? true : false,
-        location: raw.replyControl?.location ?? "",
+        location: raw.replyControl?.location?.replaceAll("IP属地：", "") ?? "",
         content: ReplyContent(
             message: raw.content?.message ?? "",
             atMembers: atMembers,
@@ -139,21 +138,23 @@ class ReplyApi {
     if (response.data == null || response.data!.replies == null) {
       return ReplyInfo.zero;
     }
-    List<ReplyItem> replies = [];
-    for (var i in response.data!.replies!) {
-      replies.add(_replyItemRawToReplyItem(i));
-    }
-    List<ReplyItem> topReplies = [];
-    if (response.data!.topReplies != null) {
-      for (var i in response.data!.topReplies!) {
-        topReplies.add(_replyItemRawToReplyItem(i));
+    return await compute((response) {
+      List<ReplyItem> replies = [];
+      for (var i in response.data!.replies!) {
+        replies.add(replyItemRawToReplyItem(i));
       }
-    }
-    return ReplyInfo(
-        replies: replies,
-        topReplies: topReplies,
-        upperMid: response.data!.upper?.mid ?? 0,
-        replyCount: response.data!.page?.acount ?? 0);
+      List<ReplyItem> topReplies = [];
+      if (response.data!.topReplies != null) {
+        for (var i in response.data!.topReplies!) {
+          topReplies.add(replyItemRawToReplyItem(i));
+        }
+      }
+      return ReplyInfo(
+          replies: replies,
+          topReplies: topReplies,
+          upperMid: response.data!.upper?.mid ?? 0,
+          replyCount: response.data!.page?.acount ?? 0);
+    }, response);
   }
 
   //请求评论的评论
@@ -164,20 +165,18 @@ class ReplyApi {
     required int pageNum,
     int pageSize = 20,
   }) async {
-    var dio = MyDio.dio;
-    var response = await dio.get(ApiConstants.replyReply,
-        queryParameters: {
-          'type': type.code,
-          'oid': oid,
-          'root': rootId,
-          'pn': pageNum,
-          'ps': pageSize
-        },
-        options: Options(responseType: ResponseType.plain));
-    var ret = await compute((data) async {
-      return reply_reply_raw.ReplyReplyResponse.fromRawJson(data);
-    }, response.data);
-    return ret;
+    var response = await HttpUtils().get(
+      ApiConstants.replyReply,
+      queryParameters: {
+        'type': type.code,
+        'oid': oid,
+        'root': rootId,
+        'pn': pageNum,
+        'ps': pageSize
+      },
+    );
+
+    return reply_reply_raw.ReplyReplyResponse.fromJson(response.data);
   }
 
   ///获取评论的评论
@@ -200,11 +199,11 @@ class ReplyApi {
     }
     List<ReplyItem> replies = [];
     for (var i in response.data!.replies!) {
-      replies.add(_replyItemRawToReplyItem(i));
+      replies.add(replyItemRawToReplyItem(i));
     }
     return ReplyReplyInfo(
         replies: replies,
-        rootReply: _replyItemRawToReplyItem(response.data!.root!),
+        rootReply: replyItemRawToReplyItem(response.data!.root!),
         upperMid: response.data!.upper?.mid ?? 0,
         replyCount: response.data!.page?.count ?? 0);
   }

@@ -39,8 +39,6 @@ class _SearchTabViewPageState extends State<SearchTabViewPage>
 
   @override
   void dispose() {
-    // controller.onClose();
-    // controller.onDelete();
     controller.dispose();
     super.dispose();
   }
@@ -60,12 +58,28 @@ class _SearchTabViewPageState extends State<SearchTabViewPage>
       onLoad: controller.onLoad,
       onRefresh: controller.onRefresh,
       childBuilder: (context, physics) => ListView.builder(
+        addAutomaticKeepAlives: false,
+        addRepaintBoundaries: false,
         controller: controller.scrollController,
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(12),
         physics: physics,
-        itemCount: controller.searchItemWidgetList.length,
+        itemCount: controller.searchItems.length,
         itemBuilder: (context, index) {
-          return controller.searchItemWidgetList[index];
+          var i = controller.searchItems[index];
+          switch (controller.searchType) {
+            case SearchType.video:
+              return controller.buildVideoItemWidget(i);
+            case SearchType.bangumi:
+              return controller.buildBangumiItemWidget(i);
+            case SearchType.user:
+              return controller.buildUserItemWidget(i);
+            case SearchType.movie:
+            // TODO: Handle this case.
+            case SearchType.liveRoom:
+            // TODO: Handle this case.
+            default:
+              return const SizedBox();
+          }
         },
       ),
     );

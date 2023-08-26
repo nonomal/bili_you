@@ -16,7 +16,7 @@ import 'dart:developer';
 import 'package:bili_you/common/api/search_api.dart';
 import 'package:bili_you/common/api/video_info_api.dart';
 import 'package:bili_you/common/utils/string_format_utils.dart';
-import 'package:bili_you/common/values/cache_keys.dart';
+import 'package:bili_you/common/utils/cache_util.dart';
 import 'package:bili_you/common/widget/video_tile_item.dart';
 import 'package:bili_you/pages/bili_video/view.dart';
 import 'package:easy_refresh/easy_refresh.dart';
@@ -30,9 +30,8 @@ class SearchTabViewController extends GetxController {
 
   EasyRefreshController refreshController = EasyRefreshController(
       controlFinishLoad: true, controlFinishRefresh: true);
-  CacheManager cacheManager =
-      CacheManager(Config(CacheKeys.searchResultItemCoverKey));
-  List<Widget> searchItemWidgetList = <Widget>[];
+  CacheManager cacheManager = CacheUtils.searchResultItemCoverCacheManager;
+  List<dynamic> searchItems = [];
   int currentPage = 1;
   ScrollController scrollController = ScrollController();
 
@@ -56,9 +55,16 @@ class SearchTabViewController extends GetxController {
     if (list.isNotEmpty) {
       currentPage++;
     }
-    for (var i in list) {
-      int heroTagId = HeroTagId.id++;
-      searchItemWidgetList.add(VideoTileItem(
+    searchItems.addAll(list);
+    return true;
+  }
+
+  //从搜索结果条目构造widget
+  Widget buildVideoItemWidget(SearchVideoItem i) {
+    int heroTagId = HeroTagId.id++;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: VideoTileItem(
         picUrl: i.coverUrl,
         bvid: i.bvid,
         title: i.title,
@@ -71,30 +77,6 @@ class SearchTabViewController extends GetxController {
         onTap: (context) {
           HeroTagId.lastId = heroTagId;
           late List<PartInfo> videoParts;
-          // Get.to(() => FutureBuilder(
-          //       future: Future(() async {
-          //         try {
-          //           videoParts = await VideoInfoApi.getVideoParts(bvid: i.bvid);
-          //         } catch (e) {
-          //           log("加载cid失败,${e.toString()}");
-          //         }
-          //       }),
-          //       builder: (context, snapshot) {
-          //         if (snapshot.connectionState == ConnectionState.done) {
-          //           return BiliVideoPage(
-          //             key: ValueKey('BiliVideoPage:${i.bvid}'),
-          //             bvid: i.bvid,
-          //             cid: videoParts.first.cid,
-          //           );
-          //         } else {
-          //           return const Scaffold(
-          //             body: Center(
-          //               child: CircularProgressIndicator(),
-          //             ),
-          //           );
-          //         }
-          //       },
-          //     ));
           Navigator.of(context).push(GetPageRoute(
               page: () => FutureBuilder(
                     future: Future(() async {
@@ -122,9 +104,8 @@ class SearchTabViewController extends GetxController {
                     },
                   )));
         },
-      ));
-    }
-    return true;
+      ),
+    );
   }
 
 //搜索番剧
@@ -137,43 +118,23 @@ class SearchTabViewController extends GetxController {
       log("loadSearchBangumiItemWidgetLists:$e");
       return false;
     }
-    for (var i in list) {
-      log(i.coverUrl);
-      searchItemWidgetList.add(BangumiTileItem(
+    searchItems.addAll(list);
+    if (list.isNotEmpty) {
+      currentPage++;
+    }
+    return true;
+  }
+
+  Widget buildBangumiItemWidget(SearchBangumiItem i) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: BangumiTileItem(
         coverUrl: i.coverUrl,
         title: i.title,
         describe: i.describe,
         score: i.score,
         onTap: (context) async {
           late BangumiInfo bangumiInfo;
-          // Get.to(() => FutureBuilder(
-          //       future: Future(() async {
-          //         try {
-          //           bangumiInfo = await BangumiApi.getBangumiInfo(ssid: i.ssid);
-          //         } catch (e) {
-          //           log("加载失败");
-          //           rethrow;
-          //         }
-          //       }),
-          //       builder: (context, snapshot) {
-          //         if (snapshot.connectionState == ConnectionState.done) {
-          //           return BiliVideoPage(
-          //             key: ValueKey(
-          //                 'BiliVideoPage:${bangumiInfo.episodes.first.bvid}'),
-          //             bvid: bangumiInfo.episodes.first.bvid,
-          //             cid: bangumiInfo.episodes.first.cid,
-          //             ssid: bangumiInfo.ssid,
-          //             isBangumi: true,
-          //           );
-          //         } else {
-          //           return const Scaffold(
-          //             body: Center(
-          //               child: CircularProgressIndicator(),
-          //             ),
-          //           );
-          //         }
-          //       },
-          //     ));
           Navigator.of(context).push(GetPageRoute(
               page: () => FutureBuilder(
                     future: Future(() async {
@@ -205,12 +166,8 @@ class SearchTabViewController extends GetxController {
                     },
                   )));
         },
-      ));
-    }
-    if (list.isNotEmpty) {
-      currentPage++;
-    }
-    return true;
+      ),
+    );
   }
 
   Future<bool> loadSearchUserItemWidgetLists() async {
@@ -222,13 +179,18 @@ class SearchTabViewController extends GetxController {
       log("loadSearchUserItemWidgetLists:$e");
       return false;
     }
-    for (var i in list) {
-      searchItemWidgetList.add(UserTileItem(searchUserItem: i));
-    }
+    searchItems.addAll(list);
     if (list.isNotEmpty) {
       currentPage++;
     }
     return true;
+  }
+
+  Widget buildUserItemWidget(SearchUserItem i) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: UserTileItem(searchUserItem: i),
+    );
   }
 
   Future<bool> selectType() async {
@@ -238,9 +200,9 @@ class SearchTabViewController extends GetxController {
       case SearchType.bangumi:
         return await loadSearchBangumiItemWidgetLists();
       case SearchType.movie:
-        return false;
+      //TODO: movie搜索
       case SearchType.liveRoom:
-        return false;
+      //TODO: liveroom搜索
       case SearchType.user:
         return await loadSearchUserItemWidgetLists();
       default:
@@ -261,7 +223,7 @@ class SearchTabViewController extends GetxController {
   Future<void> onRefresh() async {
     currentPage = 1;
     await cacheManager.emptyCache();
-    searchItemWidgetList.clear();
+    searchItems.clear();
     bool success = await selectType();
     if (success) {
       refreshController.finishRefresh();

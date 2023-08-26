@@ -1,9 +1,14 @@
+import 'dart:io';
+
+import 'package:bili_you/common/models/network/user_relations/user_relation_types.dart';
 import 'package:bili_you/common/utils/bili_you_storage.dart';
 import 'package:bili_you/common/widget/cached_network_image.dart';
 import 'package:bili_you/pages/about/about_page.dart';
 import 'package:bili_you/pages/history/history_page.dart';
+import 'package:bili_you/pages/login/qrcode_login/view.dart';
 import 'package:bili_you/pages/login/web_login/view.dart';
 import 'package:bili_you/pages/settings_page/settings_page.dart';
+import 'package:bili_you/pages/relation/view.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/adapters.dart';
@@ -18,8 +23,11 @@ class UserMenuPage extends GetView<UserMenuController> {
       child: Stack(
         children: [
           ListView(
+            addAutomaticKeepAlives: false,
+            addRepaintBoundaries: false,
             shrinkWrap: true,
             children: [
+              //用戶信息
               Row(children: [
                 Padding(
                   padding: const EdgeInsets.only(top: 60, left: 15, bottom: 10),
@@ -36,21 +44,20 @@ class UserMenuPage extends GetView<UserMenuController> {
                                 .listenable(keys: [UserStorageKeys.userFace]),
                             builder: (context, value, child) {
                               return CachedNetworkImage(
-                                cacheWidth: (80 *
+                                cacheWidth: (45 *
                                         MediaQuery.of(context).devicePixelRatio)
                                     .toInt(),
-                                cacheHeight: (80 *
+                                cacheHeight: (45 *
                                         MediaQuery.of(context).devicePixelRatio)
                                     .toInt(),
                                 //头像
                                 cacheManager: controller.cacheManager,
-                                width: 80,
-                                height: 80,
-                                imageUrl: value.get(UserStorageKeys.userFace,
-                                    defaultValue: controller.faceUrl.value),
+                                width: 45,
+                                height: 45,
+                                imageUrl: controller.faceUrl.value,
                                 placeholder: () => const SizedBox(
-                                  width: 80,
-                                  height: 80,
+                                  width: 45,
+                                  height: 45,
                                 ),
                               );
                             },
@@ -64,20 +71,22 @@ class UserMenuPage extends GetView<UserMenuController> {
                     ),
                   ),
                 ),
+                //用戶名&等級
                 Padding(
-                  padding: const EdgeInsets.only(top: 25),
+                  padding: const EdgeInsets.only(top: 45),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                    children: [//用戶名
                       Obx(() => Text(
                             controller.name.value,
-                            style: const TextStyle(fontSize: 17),
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold),
                           )),
                       const SizedBox(
-                        height: 5,
+                        height: 2,
                       ),
                       Row(
-                        children: [
+                        children: [//用戶等級
                           Obx(() => Text("LV${controller.level.value}",
                               style: TextStyle(
                                   fontSize: 12,
@@ -85,13 +94,14 @@ class UserMenuPage extends GetView<UserMenuController> {
                                       .colorScheme
                                       .onSurface))),
                           const SizedBox(
-                            width: 20,
+                            width: 35,
                           ),
                           Obx(() => Text(
                                 "${controller.currentExp}/${controller.level.value != 6 ? controller.nextExp : '--'}",
                                 style: TextStyle(
                                     fontSize: 10,
-                                    color: Theme.of(context).hintColor),
+                                    color: Theme.of(context)
+                                        .highlightColor), //TODO 颜色名称不符，但hightlight用作分割线更自然。此处UI待优化或重构
                               ))
                         ],
                       ),
@@ -99,7 +109,8 @@ class UserMenuPage extends GetView<UserMenuController> {
                           size: const Size(100, 2),
                           child: Obx(
                             () => LinearProgressIndicator(
-                              backgroundColor: Theme.of(context).highlightColor,
+                              backgroundColor: Theme.of(context)
+                                  .highlightColor, //TODO 颜色名称不符，但hightlight用作文字色更自然。此处UI待优化或重构
                               value: controller.nextExp.value > 0
                                   ? controller.currentExp.value /
                                       controller.nextExp.value
@@ -108,8 +119,30 @@ class UserMenuPage extends GetView<UserMenuController> {
                           )),
                     ],
                   ),
-                )
+                ),
+                Padding(
+                  //登錄
+                    padding: const EdgeInsets.only(top: 45),
+                    child: Obx(() => Offstage(
+                          offstage: controller.islogin_.value,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 25),
+                            child: IconButton(
+                              padding: const EdgeInsets.all(8),
+                              onPressed: () {
+                                if (Platform.isAndroid || Platform.isIOS) {
+                                  Get.off(() => const WebLoginPage());
+                                } else {
+                                  Get.off(() => const QrcodeLogin());
+                                }
+                              },
+                              icon: const Icon(Icons.login),
+                              tooltip: "登录",
+                            ),
+                          ),
+                        )))
               ]),
+              //動態數量&關注數量&粉絲數量
               Row(
                 children: [
                   Expanded(
@@ -121,7 +154,8 @@ class UserMenuPage extends GetView<UserMenuController> {
                       child: Padding(
                         padding: const EdgeInsets.all(10),
                         child: Column(
-                          children: [
+                          children: [ //動態
+                          //TODO: 查看用戶發過的動態
                             Obx(() => Text(
                                   controller.dynamicCount.value.toString(),
                                   style: TextStyle(
@@ -149,13 +183,23 @@ class UserMenuPage extends GetView<UserMenuController> {
                   Expanded(
                       child: Center(
                     child: MaterialButton(
-                      onPressed: () {},
+                      onPressed: () async {
+                        if (await controller.hasLogin()) { //判斷用戶是否登錄
+                          Navigator.of(context).push(GetPageRoute(
+                              page: () => RelationPage(
+                                    mid: controller.userInfo.mid,
+                                    type: UserRelationType.following,
+                                  )));
+                        }else{
+                          Get.rawSnackbar(message: '失敗: 用戶未登錄');
+                        }
+                      },
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30)),
                       child: Padding(
                         padding: const EdgeInsets.all(10),
                         child: Column(
-                          children: [
+                          children: [ //關注
                             Obx(() => Text(
                                   controller.followingCount.value.toString(),
                                   style: TextStyle(
@@ -185,11 +229,21 @@ class UserMenuPage extends GetView<UserMenuController> {
                     child: MaterialButton(
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30)),
-                      onPressed: () {},
+                      onPressed: () async {
+                        if (await controller.hasLogin()) { //判斷用戶是否登錄
+                          Navigator.of(context).push(GetPageRoute(
+                              page: () => RelationPage(
+                                    mid: controller.userInfo.mid,
+                                    type: UserRelationType.follower,
+                                  )));
+                        }else{
+                          Get.rawSnackbar(message: '失敗: 用戶未登錄');
+                        }
+                      },
                       child: Padding(
                         padding: const EdgeInsets.all(10),
                         child: Column(
-                          children: [
+                          children: [ //粉絲
                             Obx(() => Text(
                                   controller.followerCount.value.toString(),
                                   style: TextStyle(
@@ -218,16 +272,22 @@ class UserMenuPage extends GetView<UserMenuController> {
               ),
               Divider(
                 height: 10,
-                color: Theme.of(context).dividerColor,
+                color: Theme.of(context).highlightColor,
                 indent: 25,
                 endIndent: 25,
-                thickness: 2,
+                thickness: 1,
               ),
               UserMenuListTile(
                 icon: const Icon(Icons.history),
                 title: '历史记录',
-                onTap: () => Navigator.of(context)
-                    .push(GetPageRoute(page: () => const HistoryPage())),
+                onTap: () async{ //判斷用戶是否登錄
+                  if (await controller.hasLogin()) {
+                    Navigator.of(context)
+                    .push(GetPageRoute(page: () => const HistoryPage())); //如果登錄了就跳轉到歷史記錄頁面
+                  }else{
+                    Get.rawSnackbar(message:'失敗: 用戶未登錄');
+                  }
+                }
               ),
               UserMenuListTile(
                 icon: const Icon(
@@ -251,9 +311,37 @@ class UserMenuPage extends GetView<UserMenuController> {
               ),
               UserMenuListTile(
                 icon: const Icon(Icons.logout_rounded),
-                title: "退出登陆",
-                onTap: () {
-                  controller.onLogout();
+                title: "退出登录",
+                onTap: () async {
+                  if (await controller.hasLogin()) { //判斷用戶是否登錄
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog( //彈出對話框
+                          title: const Text("退出登录"),
+                          content: const Text("是否确定要退出登录？"),
+                          actions: [
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pop(); // 关闭对话框
+                              },
+                              child: const Text("取消"),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                controller.onLogout(); // 执行退出登录操作
+                                Navigator.of(context).pop(); // 关闭对话框
+                                Get.rawSnackbar(message: '退出成功');
+                              },
+                              child: const Text("确定"),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  } else {
+                    Get.rawSnackbar(message: '退出失敗: 用戶未登錄');
+                  }
                 },
               ),
               const SizedBox(
@@ -263,38 +351,17 @@ class UserMenuPage extends GetView<UserMenuController> {
           ),
           Row(
             children: [
-              IconButton(
-                  padding: const EdgeInsets.all(8),
-                  onPressed: () {
-                    Get.close(1);
-                  },
-                  icon: const Icon(Icons.close_rounded)),
+              Padding(
+                  padding: const EdgeInsets.only(left: 8, top: 8),
+                  child: IconButton(
+                      padding: const EdgeInsets.all(8),
+                      onPressed: () {
+                        Get.close(1);
+                      },
+                      icon: const Icon(Icons.close_rounded))),
               const Spacer(
                 flex: 1,
               ),
-              FutureBuilder(
-                  future: controller.hasLogin(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.done) {
-                      return Offstage(
-                        offstage: snapshot.data ?? false,
-                        child: Padding(
-                          padding: const EdgeInsets.all(2),
-                          child: TextButton(
-                            onPressed: () {
-                              Get.off(() => const WebLoginPage());
-                            },
-                            child: const Text(
-                              "登录",
-                              style: TextStyle(fontSize: 15),
-                            ),
-                          ),
-                        ),
-                      );
-                    } else {
-                      return const Spacer();
-                    }
-                  })
             ],
           ),
         ],

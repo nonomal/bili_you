@@ -1,246 +1,367 @@
 import 'dart:async';
+import 'dart:developer';
+import 'dart:io';
+
+import 'package:bili_you/common/utils/index.dart';
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
-import 'package:wakelock/wakelock.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class VideoAudioPlayer extends StatefulWidget {
-  const VideoAudioPlayer(this.controller, {super.key});
+  const VideoAudioPlayer(this.controller,
+      {super.key,
+      this.width,
+      this.height,
+      this.asepectRatio,
+      this.fit = BoxFit.contain});
   final VideoAudioController controller;
+  final double? width;
+  final double? height;
+  final double? asepectRatio;
+  final BoxFit fit;
+
   @override
   State<VideoAudioPlayer> createState() => _VideoAudioPlayerState();
 }
 
 class _VideoAudioPlayerState extends State<VideoAudioPlayer> {
   @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return VideoPlayer(widget.controller._videoPlayerController!);
+    return FutureBuilder(
+      future: widget.controller.init(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done) {
+          return Video(
+            controller: VideoController(
+              PlayersSingleton().player!,
+              configuration: VideoControllerConfiguration(
+                  enableHardwareAcceleration: SettingsUtil.getValue(
+                      SettingsStorageKeys.isHardwareDecode,
+                      defaultValue: true)),
+            ),
+            width: widget.width,
+            height: widget.height,
+            fit: widget.fit,
+            aspectRatio: widget.asepectRatio,
+          );
+        } else {
+          return const CircularProgressIndicator();
+        }
+      },
+    );
+  }
+}
+
+class PlayersSingleton {
+  static final PlayersSingleton _instance = PlayersSingleton._internal();
+  factory PlayersSingleton() => _instance;
+  PlayersSingleton._internal();
+  Player? player;
+  int count = 0;
+  bool _isPlayerReady = false;
+  StreamSubscription<bool>? bufferingListen;
+  StreamSubscription<bool>? playingListen;
+  StreamSubscription<bool>? completedListen;
+  StreamSubscription<Duration>? positionListen;
+  StreamSubscription<double>? rateListen;
+  StreamSubscription<Duration>? bufferListen;
+  StreamSubscription? errorListen;
+  StreamSubscription<Duration>? durationListen;
+  StreamSubscription<int?>? widthListen;
+  StreamSubscription<int?>? heightListen;
+
+  Future<void> cancelSubscriptions() async {
+    await bufferingListen?.cancel();
+    await playingListen?.cancel();
+    await completedListen?.cancel();
+    await positionListen?.cancel();
+    await rateListen?.cancel();
+    await bufferListen?.cancel();
+    await errorListen?.cancel();
+    await durationListen?.cancel();
+    await widthListen?.cancel();
+    await heightListen?.cancel();
+  }
+
+  void pauseSubscriptions() {
+    bufferingListen?.pause();
+    playingListen?.pause();
+    completedListen?.pause();
+    positionListen?.pause();
+    rateListen?.pause();
+    bufferListen?.pause();
+    errorListen?.pause();
+    durationListen?.pause();
+    widthListen?.pause();
+    heightListen?.pause();
+  }
+
+  void resumeSubscriptions() {
+    bufferingListen?.resume();
+    playingListen?.resume();
+    completedListen?.resume();
+    positionListen?.resume();
+    rateListen?.resume();
+    bufferListen?.resume();
+    errorListen?.resume();
+    durationListen?.resume();
+    widthListen?.resume();
+    heightListen?.resume();
+  }
+
+  void initSubscriptions() {
+    bufferingListen = player?.stream.buffering.listen((e) {});
+    playingListen = player?.stream.playing.listen((e) {});
+    completedListen = player?.stream.completed.listen((e) {});
+    positionListen = player?.stream.position.listen((e) {});
+    rateListen = player?.stream.rate.listen((e) {});
+    bufferListen = player?.stream.buffer.listen((e) {});
+    errorListen = player?.stream.error.listen((e) {});
+    durationListen = player?.stream.duration.listen((e) {});
+    widthListen = player?.stream.width.listen((event) {});
+    heightListen = player?.stream.height.listen((event) {});
+  }
+
+  Future<void> init() async {
+    if (player == null) {
+      player = Player(
+          configuration: PlayerConfiguration(
+        ready: () => _isPlayerReady = true,
+      ));
+      await cancelSubscriptions();
+      initSubscriptions();
+      await Future.doWhile(() async {
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (_isPlayerReady) {
+          return false;
+        }
+        return true;
+      });
+    }
+  }
+
+  Future<void> dispose() async {
+    await player?.dispose();
+    player = null;
+    _isPlayerReady = false;
+    count = 0;
   }
 }
 
 class VideoAudioController {
-  VideoAudioController(
-      {required this.videoUrl,
-      required this.audioUrl,
-      Map<String, String>? videoHeaders,
-      Map<String, String>? audioHeaders,
-      this.autoWakelock = false})
-      : _videoHeaders = videoHeaders ?? {},
-        _audioHeaders = audioHeaders ?? {} {
-    _init();
-  }
-  final String videoUrl;
-  final Map<String, String> _videoHeaders;
-  final String audioUrl;
-  final Map<String, String> _audioHeaders;
-  bool autoWakelock; //可以读写操作
-  VideoAudioPlayerValue value = VideoAudioPlayerValue();
-  final VideoAudioPlayerValue _lastValue = VideoAudioPlayerValue();
-  VideoPlayerController? _videoPlayerController;
-  VideoPlayerController? _audioPlayerController;
-  VideoPlayerController? get videoPlayerController => _videoPlayerController;
-  VideoPlayerController? get audioPlayerController => _audioPlayerController;
-  final List<Function(VideoAudioPlayerValue)> _stateChangedListeners = [];
+  VideoAudioController({
+    this.videoUrl = '',
+    this.audioUrl = '',
+    this.headers,
+    this.autoWakelock = false,
+    this.initStart = false,
+    this.initSpeed = 1,
+    this.initDuration = Duration.zero,
+  });
+  String videoUrl;
+  String audioUrl;
+  final Map<String, String>? headers;
+  bool autoWakelock;
+  final bool initStart;
+  final double initSpeed;
+  final Duration initDuration;
+
+  final VideoAudioState state = VideoAudioState();
+  bool _initialized = false;
+
+  final List<Function(VideoAudioState state)> _stateChangedListeners = [];
   final List<VoidCallback> _listeners = [];
   final List<Function(Duration position)> _seekToListeners = [];
-  late Timer timer;
-  Future<Duration> get position async =>
-      await _audioPlayerController?.position ?? Duration.zero;
-  bool get hasError {
-    if ((_videoPlayerController?.value.hasError ?? false) ||
-        (_audioPlayerController?.value.hasError ?? false)) {
-      return true;
-    } else {
-      return false;
+
+  Future<void> init() async {
+    if (_initialized) {
+      log('当前播放器控制器已经初始化过了');
+      return;
     }
+    //如果还没有播放器实例就创建
+    if (PlayersSingleton().count == 0) {
+      await PlayersSingleton().init();
+    }
+    //每初始化一次计数就加1
+    PlayersSingleton().count++;
+    await refresh();
+    if (initStart) {
+      await play();
+      await PlayersSingleton().player?.setRate(initSpeed);
+    }
+    _initialized = true;
   }
 
-  bool _isPlayPauseLocked = false;
-  bool _isInitializedLocked = false;
-
-  bool _toPlay = false;
-  bool _toPause = false;
-
-  void _videoPlayerControllerCallback() {
-    //检查是否播放到结尾了
-    if (_videoPlayerController!.value.position ==
-        _videoPlayerController!.value.duration) {
-      value.isPlaying = false;
-      if (_videoPlayerController!.value.isPlaying) {
-        _videoPlayerController!.pause();
-      }
-      if (_audioPlayerController!.value.isPlaying) {
-        _audioPlayerController!.pause();
-      }
-      value.isEnd = true;
-    } else {
-      if (value.isEnd) {
-        _callSeekToListeners(Duration.zero);
-        value.isEnd = false;
-      }
+  // 刷新播放器数据
+  // 如果还需要换音视频源的话，还需要在调用前改变videoUrl,audioUrl
+  Future<void> refresh() async {
+    //重置几个值
+    state.isBuffering = false;
+    state.buffered = Duration.zero;
+    state.hasError = false;
+    var lastPosition =
+        (state.position >= Duration.zero) ? state.position : Duration.zero;
+    if (!_initialized) {
+      lastPosition = initDuration;
     }
-    value.buffered = _videoPlayerController!.value.buffered;
-  }
-
-  void _audioPlayerControllerCallback() {}
-
-  void autoWakelockCallback(VideoAudioPlayerValue value) {
-    if (autoWakelock) {
-      if (value.isPlaying) {
-        Wakelock.enable();
-      } else {
-        Wakelock.disable();
-      }
-    } else {
-      Wakelock.disable();
+    var lastIsPlaying = state.isPlaying;
+    PlayersSingleton().pauseSubscriptions();
+    //播放器单例引用
+    var player = PlayersSingleton().player!;
+    //设置音频源
+    if (audioUrl.isNotEmpty) {
+      await (player.platform as NativePlayer).setProperty(
+          'audio-files',
+          Platform.isWindows
+              ? audioUrl.replaceAll(';', '\\;')
+              : audioUrl.replaceAll(':', '\\:'));
     }
-  }
-
-  void _init() async {
-    _videoPlayerController ??= VideoPlayerController.network(videoUrl,
-        httpHeaders: _videoHeaders,
-        videoPlayerOptions: VideoPlayerOptions(
-            mixWithOthers: true, allowBackgroundPlayback: true));
-
-    _audioPlayerController ??= VideoPlayerController.network(audioUrl,
-        httpHeaders: _audioHeaders,
-        videoPlayerOptions: VideoPlayerOptions(
-            mixWithOthers: true, allowBackgroundPlayback: true));
-    _videoPlayerController!.setVolume(0);
-    _videoPlayerController!.addListener(_videoPlayerControllerCallback);
-    _audioPlayerController!.addListener(_audioPlayerControllerCallback);
-    addStateChangedListener(autoWakelockCallback);
-
-    timer = Timer.periodic(const Duration(milliseconds: 17), (timer) {
-      if (value.isInitialized) {
-        () async {
-          if (!_isPlayPauseLocked) {
-            _isPlayPauseLocked = true;
-            if (_toPlay) {
-              if (value.isEnd) {
-                value.isEnd = false;
-                await _videoPlayerController!.seekTo(Duration.zero);
-                await _audioPlayerController!.seekTo(Duration.zero);
-              } else {
-                await _videoPlayerController!.play();
-                await _audioPlayerController!.play();
-                value.isPlaying = true;
-                _toPlay = false;
-              }
-            } else if (_toPause) {
-              await _videoPlayerController!.pause();
-              await _audioPlayerController!.pause();
-              _toPause = false;
-            } else if (value.isPlaying) {
-              var isVideoPlaying = _videoPlayerController!.value.isPlaying;
-              var isVideoBuffering = _videoPlayerController!.value.isBuffering;
-              var isAudioPlaying = _audioPlayerController!.value.isPlaying;
-              var isAudioBuffering = _audioPlayerController!.value.isBuffering;
-              // var videoDuration = _videoPlayerController.value.duration;
-              // var audioDuration = _audioPlayerController.value.duration;
-              var videoPos = (await _videoPlayerController!.position)!;
-              var audioPos = (await _audioPlayerController!.position)!;
-              if (value.isPlaying) {
-                if (isVideoPlaying &&
-                    isVideoBuffering &&
-                    isAudioPlaying &&
-                    isAudioBuffering) {
-                  //缓冲状态
-                  value.isBuffering = true;
-                } else if (isVideoPlaying &&
-                    isVideoBuffering &&
-                    isAudioPlaying &&
-                    !isAudioBuffering) {
-                  //声音暂停等待视频缓冲
-                  await _audioPlayerController!.pause();
-                  value.isBuffering = true;
-                } else if (isVideoPlaying &&
-                    !isVideoBuffering &&
-                    isAudioPlaying &&
-                    isAudioBuffering) {
-                  //视频暂停等待声音缓冲
-                  await _videoPlayerController!.pause();
-                  value.isBuffering = true;
-                } else if (isVideoPlaying &&
-                    !isVideoBuffering &&
-                    isAudioPlaying &&
-                    !isAudioBuffering) {
-                  await () async {
-                    //变速同步
-                    if ((videoPos.inMilliseconds - audioPos.inMilliseconds) >
-                        17) {
-                      await _videoPlayerController!
-                          .setPlaybackSpeed(value.speed - 0.25);
-                      // log('video sync: changed speed to ${value.speed - 0.25}');
-                    } else if ((videoPos.inMilliseconds -
-                            audioPos.inMilliseconds) <
-                        -17) {
-                      await _videoPlayerController!
-                          .setPlaybackSpeed(value.speed + 0.25);
-                      // log('video sync: changed speed to ${value.speed + 0.25}');
-                    } else if (_videoPlayerController!.value.playbackSpeed !=
-                        1) {
-                      await _videoPlayerController!
-                          .setPlaybackSpeed(value.speed);
-                      // log('video sync: changed speed to ${value.speed}');
-                    }
-                  }();
-                } else if (isVideoPlaying &&
-                    !isVideoBuffering &&
-                    !isAudioPlaying) {
-                  //视频缓冲完成,声音继续播放
-                  await _audioPlayerController!.play();
-                  value.isBuffering = false;
-                } else if (isAudioPlaying &&
-                    !isAudioBuffering &&
-                    !isVideoPlaying) {
-                  //声音缓冲完成,视频继续播放
-                  await _videoPlayerController!.play();
-                  value.isBuffering = false;
-                } else if (!isVideoPlaying && !isAudioPlaying) {
-                  //视频因外部原因暂停
-                  // value.isPlaying = false;
-                  value.isBuffering = false;
-                }
-              } else {
-                //视频暂停
-                await _videoPlayerController!.pause();
-                await _audioPlayerController!.pause();
-                value.isBuffering = false;
-              }
-            }
-            //检测状态变化并调用相应的监听器回调
-            if (value.isBuffering != _lastValue.isBuffering) {
-              _lastValue.isBuffering = value.isBuffering;
-              _callStateChangedListeners();
-              // log("isBuffering changed");
-            }
-            if (value.isPlaying != _lastValue.isPlaying) {
-              _lastValue.isPlaying = value.isPlaying;
-              _callStateChangedListeners();
-              // log("isPlaying changed:${value.isPlaying}");
-            }
-            if (value.isEnd != _lastValue.isEnd) {
-              _lastValue.isEnd = value.isEnd;
-              _callStateChangedListeners();
-              // log("isEnd changed");
-            }
-            // log("isPlaying:${value.isPlaying}");
-            // log("isEnd:${value.isEnd}");
-            _callListeners();
-            _isPlayPauseLocked = false;
+    //设置视频源
+    await player.open(Media(videoUrl, httpHeaders: headers), play: false);
+    //设置监听
+    _setStreamListener();
+    PlayersSingleton().resumeSubscriptions();
+    await pause();
+    //如果已经初始化了,就恢复播放状态
+    if (_initialized) {
+      await Future.doWhile(() async {
+        await Future.delayed(const Duration(milliseconds: 100));
+        //等到position变为0时才是加载完成,此时才能进行调整进度,或播放/暂停
+        if (state.position.inMilliseconds == 0) {
+          state.isPlaying = false;
+          state.isBuffering = false;
+          log('lastPosition:${lastPosition.inMilliseconds}');
+          if (lastPosition.inMilliseconds != state.position.inMilliseconds) {
+            await player.seek(lastPosition);
           }
-        }();
+          //如果之前的state是播放，就播放
+          if (lastIsPlaying && !state.isEnd) {
+            await player.play();
+          }
+          return false;
+        } else {
+          return true;
+        }
+      });
+    }
+  }
+
+  void _setStreamListener() {
+    // 进度监听
+    PlayersSingleton().positionListen!.onData((event) async {
+      // log('position:$event');
+      state.position = event >= Duration.zero ? event : Duration.zero;
+      for (var element in _listeners) {
+        element();
       }
     });
+    // 播放/暂停监听
+    PlayersSingleton().playingListen!.onData((event) async {
+      log('play:$event');
+      if (!state.isBuffering) {
+        state.isPlaying = event;
+      }
+      if (state.speed != PlayersSingleton().player?.state.rate) {
+        PlayersSingleton().player?.setRate(state.speed);
+      }
+      _callStateChangeListeners();
+    });
+    // 缓冲状态
+    PlayersSingleton().bufferingListen!.onData((event) async {
+      log('buffering:$event');
+      state.isBuffering = event;
+      _callStateChangeListeners();
+    });
+    // 播放完成监听
+    PlayersSingleton().completedListen!.onData((event) async {
+      log('complete:$event');
+      state.isEnd = event;
+      _callStateChangeListeners();
+    });
+    // 倍速监听
+    PlayersSingleton().rateListen!.onData((event) => state.speed = event);
+    // 缓冲监听
+    PlayersSingleton().bufferListen!.onData((event) {
+      state.buffered = event;
+      _callStateChangeListeners();
+    });
+    // 错误监听
+    PlayersSingleton().errorListen!.onData((event) {
+      state.hasError = event.code == 0;
+      _callStateChangeListeners();
+    });
+    // 时长监听
+    PlayersSingleton()
+        .durationListen!
+        .onData((event) => state.duration = event);
+    //宽高监听
+    PlayersSingleton().widthListen!.onData((event) => state.width = event ?? 1);
+    PlayersSingleton()
+        .heightListen!
+        .onData((event) => state.height = event ?? 1);
   }
 
-//listen when isPlaying or isBuffering changed
-  void addStateChangedListener(Function(VideoAudioPlayerValue value) listener) {
+  void autoWakelockCallback(VideoAudioState value) {
+    if (Platform.isLinux) {
+      return;
+    }
+    if (autoWakelock) {
+      if (value.isPlaying) {
+        WakelockPlus.enable();
+      } else {
+        WakelockPlus.disable();
+      }
+    } else {
+      WakelockPlus.disable();
+    }
+  }
+
+  Future<void> play() async {
+    state.isPlaying = true;
+    await PlayersSingleton().player?.play();
+  }
+
+  Future<void> pause() async {
+    state.isPlaying = false;
+    await PlayersSingleton().player?.pause();
+  }
+
+  Future<void> seekTo(Duration position) async {
+    await PlayersSingleton().player?.seek(position);
+    state.position = position;
+    for (var element in _seekToListeners) {
+      element(position);
+    }
+  }
+
+  Future<void> setPlayBackSpeed(double speed) async {
+    state.speed = speed;
+    await PlayersSingleton().player?.setRate(speed);
+  }
+
+  Future<void> dispose() async {
+    await pause();
+    PlayersSingleton().count--;
+  }
+
+  void addStateChangedListener(Function(VideoAudioState value) listener) {
     _stateChangedListeners.add(listener);
   }
 
-  void removeStateChangedListener(
-      Function(VideoAudioPlayerValue value) listener) {
+  void _callStateChangeListeners() {
+    for (var element in _stateChangedListeners) {
+      element(state);
+    }
+    autoWakelockCallback(state);
+  }
+
+  void removeStateChangedListener(Function(VideoAudioState value) listener) {
     _stateChangedListeners.remove(listener);
   }
 
@@ -252,18 +373,6 @@ class VideoAudioController {
     _seekToListeners.remove(listener);
   }
 
-  void _callSeekToListeners(Duration position) {
-    for (var i in _seekToListeners) {
-      i(position);
-    }
-  }
-
-  void _callStateChangedListeners() {
-    for (var i in _stateChangedListeners) {
-      i(value);
-    }
-  }
-
   void addListener(VoidCallback listener) {
     _listeners.add(listener);
   }
@@ -271,93 +380,18 @@ class VideoAudioController {
   void removeListener(VoidCallback listener) {
     _listeners.remove(listener);
   }
-
-  void _callListeners() {
-    for (var i in _listeners) {
-      i();
-    }
-  }
-
-  Future<void> ensureInitialized() async {
-    if (!_isInitializedLocked) {
-      _isInitializedLocked = true;
-      if (!value.isInitialized) {
-        if (!_videoPlayerController!.value.isInitialized) {
-          await _videoPlayerController!.initialize();
-        }
-        value.duration = _videoPlayerController!.value.duration;
-        value._aspectRatio = _videoPlayerController!.value.aspectRatio;
-        if (!_audioPlayerController!.value.isInitialized) {
-          await _audioPlayerController!.initialize();
-        }
-        value.isInitialized = true;
-        _audioPlayerController!.seekTo(Duration.zero);
-        _videoPlayerController!.seekTo(Duration.zero);
-      }
-    }
-    _isInitializedLocked = false;
-  }
-
-  Future<void> pause() async {
-    if (_isPlayPauseLocked) {
-      _toPlay = false;
-      _toPause = true;
-    } else {
-      await _videoPlayerController!.pause();
-      await _audioPlayerController!.pause();
-    }
-    value.isPlaying = false;
-  }
-
-  Future<void> play() async {
-    if (_isPlayPauseLocked) {
-      _toPause = false;
-      _toPlay = true;
-    } else {
-      await _videoPlayerController?.play();
-      await _audioPlayerController?.play();
-      value.isPlaying = true;
-    }
-  }
-
-  Future<void> seekTo(Duration position) async {
-    await _videoPlayerController?.seekTo(position);
-    await _audioPlayerController?.seekTo(position);
-    value.position = position;
-    _callSeekToListeners(position);
-  }
-
-  Future<void> setPlayBackSpeed(double speed) async {
-    await _videoPlayerController?.setPlaybackSpeed(speed);
-    await _audioPlayerController?.setPlaybackSpeed(speed);
-    value.speed = speed;
-  }
-
-  Future<void> dispose() async {
-    _videoPlayerController!.removeListener(_videoPlayerControllerCallback);
-    _audioPlayerController!.removeListener(_audioPlayerControllerCallback);
-    removeStateChangedListener(autoWakelockCallback);
-    value.isPlaying = false;
-    value.isBuffering = false;
-    timer.cancel();
-    _stateChangedListeners.clear();
-    _listeners.clear();
-    await _videoPlayerController!.pause();
-    await _audioPlayerController!.pause();
-    await _videoPlayerController!.dispose();
-    await _audioPlayerController!.dispose();
-  }
 }
 
-class VideoAudioPlayerValue {
-  bool isInitialized = false;
+class VideoAudioState {
   bool isPlaying = false;
   bool isBuffering = false;
   bool isEnd = false;
-  double _aspectRatio = 1;
-  double get aspectRatio => _aspectRatio;
-  double speed = 1;
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
-  List<DurationRange> buffered = [];
+  double speed = 1;
+  Duration buffered = Duration.zero;
+  bool hasError = false;
+  int width = 1;
+  int height = 1;
+  double canvasScale = 1;
 }

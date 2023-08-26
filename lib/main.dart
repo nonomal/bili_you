@@ -1,16 +1,18 @@
 import 'package:bili_you/common/utils/bili_you_storage.dart';
-import 'package:bili_you/common/utils/my_dio.dart';
+import 'package:bili_you/common/utils/http_utils.dart';
 import 'package:bili_you/common/utils/settings.dart';
+import 'package:bili_you/pages/bili_video/index.dart';
 import 'package:bili_you/pages/main/index.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:media_kit/media_kit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await MyDio.init();
   await BiliYouStorage.ensureInitialized();
+  MediaKit.ensureInitialized();
   runApp(const MyApp());
   //状态栏、导航栏沉浸
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -28,6 +30,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return DynamicColorBuilder(builder: ((lightDynamic, darkDynamic) {
       return GetMaterialApp(
+          onInit: () async {
+            await HttpUtils().init();
+          },
+          navigatorObservers: [BiliVideoPage.routeObserver],
           useInheritedMediaQuery: true,
           themeMode: SettingsUtil.currentThemeMode,
           theme: ThemeData(
@@ -46,7 +52,7 @@ class MyApp extends StatelessWidget {
               : MediaQuery(
                   data: MediaQuery.of(context).copyWith(
                       textScaleFactor: MediaQuery.of(context).textScaleFactor *
-                          BiliYouStorage.settings.get(
+                          SettingsUtil.getValue(
                               SettingsStorageKeys.textScaleFactor,
                               defaultValue: 1.0)),
                   child: child));

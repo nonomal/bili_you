@@ -4,12 +4,15 @@ import 'package:bili_you/common/api/reply_operation_api.dart';
 import 'package:bili_you/common/models/local/reply/official_verify.dart';
 import 'package:bili_you/common/models/local/reply/reply_content.dart';
 import 'package:bili_you/common/models/local/reply/reply_item.dart';
+import 'package:bili_you/common/utils/show_dialog.dart';
 import 'package:bili_you/common/utils/string_format_utils.dart';
-import 'package:bili_you/common/values/cache_keys.dart';
+import 'package:bili_you/common/utils/cache_util.dart';
 import 'package:bili_you/common/widget/avatar.dart';
 import 'package:bili_you/common/widget/cached_network_image.dart';
 import 'package:bili_you/common/widget/foldable_text.dart';
-import 'package:bili_you/pages/bili_video/widgets/reply/widgets/view_image.dart';
+import 'package:bili_you/common/widget/icon_text_button.dart';
+import 'package:bili_you/common/widget/tag.dart';
+import 'package:bili_you/pages/bili_video/widgets/reply/add_reply_util.dart';
 import 'package:bili_you/pages/search_result/view.dart';
 import 'package:bili_you/pages/user_space/view.dart';
 import 'package:bili_you/pages/webview/browser.dart';
@@ -19,25 +22,27 @@ import 'package:get/get.dart';
 
 import 'reply_reply_page.dart';
 
-class ReplyItemWidget extends StatelessWidget {
+class ReplyItemWidget extends StatefulWidget {
   const ReplyItemWidget(
       {super.key,
       required this.reply,
       this.isTop = false,
       this.isUp = false,
       this.showPreReply = true,
-      this.pauseVideoPlayer,
       this.officialVerifyType});
   final ReplyItem reply;
   final bool isTop; //是否是置顶
   final bool isUp; //是否是up主
   final bool showPreReply; //是否显示评论的外显示评论
-  final Function()? pauseVideoPlayer;
   final OfficialVerifyType? officialVerifyType;
 
-  static final CacheManager emoteCacheManager =
-      CacheManager(Config(CacheKeys.emoteKey));
+  static final CacheManager emoteCacheManager = CacheUtils.emoteCacheManager;
 
+  @override
+  State<ReplyItemWidget> createState() => _ReplyItemWidgetState();
+}
+
+class _ReplyItemWidgetState extends State<ReplyItemWidget> {
   TextSpan buildReplyItemContent(ReplyContent content, BuildContext context) {
     if (content.emotes.isEmpty &&
         content.jumpUrls.isEmpty &&
@@ -67,7 +72,7 @@ class ReplyItemWidget extends StatelessWidget {
                 child: CachedNetworkImage(
                   cacheWidth: 200,
                   cacheHeight: 200,
-                  cacheManager: emoteCacheManager,
+                  cacheManager: ReplyItemWidget.emoteCacheManager,
                   imageUrl: emote.url,
                 ),
               )),
@@ -95,12 +100,10 @@ class ReplyItemWidget extends StatelessWidget {
         onTap: () {
           var url = Uri.tryParse(i.url);
           if (url == null || !url.hasScheme) {
-            pauseVideoPlayer?.call();
             //若不是链接,去搜索
             Navigator.of(context).push(
                 GetPageRoute(page: () => SearchResultPage(keyWord: i.url)));
           } else {
-            pauseVideoPlayer?.call();
             //若是链接跳转到webview
             Navigator.of(context).push(GetPageRoute(
                 page: () => BiliBrowser(
@@ -119,18 +122,15 @@ class ReplyItemWidget extends StatelessWidget {
       spans.add(WidgetSpan(
           child: GestureDetector(
         onTap: () {
-          // pauseVideoPlayer?.call();
-          // Get.to(
-          //     () => ViewImage(key: ValueKey("ViewImage:${i.url}"), url: i.url));
-          Navigator.of(context).push(GetPageRoute(
-              page: () =>
-                  ViewImage(key: ValueKey("ViewImage:${i.url}"), url: i.url)));
+          ShowDialog.showImageViewer(
+              context: context,
+              urls: content.pictures.map<String>((e) => e.url).toList(),
+              initIndex: content.pictures.indexOf(i));
         },
         child: Padding(
           padding: const EdgeInsets.all(2),
           child: Hero(
             tag: i.url,
-            transitionOnUserGestures: true,
             child: CachedNetworkImage(
               placeholder: () => Container(
                 color: Get.theme.colorScheme.primary,
@@ -140,7 +140,7 @@ class ReplyItemWidget extends StatelessWidget {
               width: Get.size.width / 3,
               height: Get.size.width / 3,
               cacheWidth: ((Get.size.width / 3) * Get.pixelRatio).toInt(),
-              cacheManager: CacheManager(Config(CacheKeys.replyImageKey)),
+              cacheManager: CacheUtils.bigImageCacheManager,
             ),
           ),
         ),
@@ -152,218 +152,205 @@ class ReplyItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-        padding: const EdgeInsets.all(10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Column(
+    return Column(
+      children: [
+        Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AvatarWidget(
-                  avatarUrl: reply.member.avatarUrl,
-                  officialVerifyType: officialVerifyType,
-                  radius: 45 / 2,
-                  onPressed: () {
-                    pauseVideoPlayer?.call();
-                    // Get.to(() => UserSpacePage(
-                    //     key: ValueKey("UserSpacePage:${reply.member.mid}"),
-                    //     mid: reply.member.mid));
-                    Navigator.of(context).push(GetPageRoute(
-                        page: () => UserSpacePage(
-                            key: ValueKey("UserSpacePage:${reply.member.mid}"),
-                            mid: reply.member.mid)));
-                  },
-                  cacheWidthHeight: 200,
-                ),
-                const SizedBox(
-                  height: 10,
-                ),
-                isTop
-                    ? Text(
-                        "置顶",
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold),
-                      )
-                    : const SizedBox()
-              ],
-            ),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Column(
                   children: [
-                    Padding(
-                      padding:
-                          const EdgeInsets.only(left: 10, top: 5, bottom: 5),
-                      child: GestureDetector(
-                        onTap: () {
-                          pauseVideoPlayer?.call();
-                          // Get.to(() => UserSpacePage(
-                          //     key:
-                          //         ValueKey("UserSpacePage:${reply.member.mid}"),
-                          //     mid: reply.member.mid));
-                          Navigator.of(context).push(GetPageRoute(
-                              page: () => UserSpacePage(
-                                  key: ValueKey(
-                                      "UserSpacePage:${reply.member.mid}"),
-                                  mid: reply.member.mid)));
-                        },
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                    AvatarWidget(
+                      avatarUrl: widget.reply.member.avatarUrl,
+                      officialVerifyType: widget.officialVerifyType,
+                      radius: 45 / 2,
+                      onPressed: () {
+                        // Get.to(() => UserSpacePage(
+                        //     key: ValueKey("UserSpacePage:${reply.member.mid}"),
+                        //     mid: reply.member.mid));
+                        Navigator.of(context).push(GetPageRoute(
+                            page: () => UserSpacePage(
+                                key: ValueKey(
+                                    "UserSpacePage:${widget.reply.member.mid}"),
+                                mid: widget.reply.member.mid)));
+                      },
+                      cacheWidthHeight: 200,
+                    ),
+                    const SizedBox(
+                      height: 10,
+                    ),
+                    const SizedBox()
+                  ],
+                ),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            left: 10,
+                          ),
+                          child: GestureDetector(
+                            onTap: () {
+                              // Get.to(() => UserSpacePage(
+                              //     key:
+                              //         ValueKey("UserSpacePage:${reply.member.mid}"),
+                              //     mid: reply.member.mid));
+                              Navigator.of(context).push(GetPageRoute(
+                                  page: () => UserSpacePage(
+                                      key: ValueKey(
+                                          "UserSpacePage:${widget.reply.member.mid}"),
+                                      mid: widget.reply.member.mid)));
+                            },
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  reply.member.name,
-                                  style: TextStyle(
-                                      color:
-                                          Theme.of(context).colorScheme.primary,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold),
+                                Row(
+                                  children: [
+                                    Text(
+                                      widget.reply.member.name,
+                                      style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                    if (widget.isUp)
+                                      const Padding(
+                                          padding: EdgeInsets.only(left: 4),
+                                          child: TextTag(
+                                            text: "UP主",
+                                          )),
+                                    if (widget.isTop)
+                                      const Padding(
+                                          padding: EdgeInsets.only(left: 4),
+                                          child: TextTag(
+                                            text: "置顶",
+                                          )),
+                                  ],
                                 ),
-                                if (isUp)
-                                  const Padding(
-                                      padding: EdgeInsets.only(left: 4),
-                                      child: UpperTag())
+                                Row(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 10),
+                                      child: Text(
+                                          StringFormatUtils.timeStampToAgoDate(
+                                              widget.reply.replyTime),
+                                          style: TextStyle(
+                                              color:
+                                                  Theme.of(context).hintColor,
+                                              fontSize: 12)),
+                                    ),
+                                    Text(widget.reply.location,
+                                        style: TextStyle(
+                                            color: Theme.of(context).hintColor,
+                                            fontSize: 12))
+                                  ],
+                                )
                               ],
                             ),
-                            Text(reply.location,
-                                style: TextStyle(
-                                    color: Theme.of(context).hintColor,
-                                    fontSize: 12))
-                          ],
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(10),
-                      child:
-                          //评论内容
-                          //TODO: 有表情的评论暂时无法折叠
-                          (reply.content.emotes.isNotEmpty ||
-                                  reply.content.pictures.isNotEmpty ||
-                                  reply.content.jumpUrls.isNotEmpty)
-                              ? SelectableText.rich(
-                                  buildReplyItemContent(reply.content, context))
-                              : SelectableRegion(
-                                  magnifierConfiguration:
-                                      const TextMagnifierConfiguration(),
-                                  focusNode: FocusNode(),
-                                  selectionControls:
-                                      MaterialTextSelectionControls(),
-                                  child: FoldableText.rich(
-                                    buildReplyItemContent(
-                                        reply.content, context),
-                                    maxLines: 6,
-                                    folderTextStyle: TextStyle(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary),
-                                  )),
-                    ),
-                    Row(
-                      children: [
-                        StatefulBuilder(builder: (context, setState) {
-                          return ThumUpButton(
-                            likeNum: reply.likeCount,
-                            selected: reply.hasLike,
-                            onPressed: () async {
-                              try {
-                                var result = await ReplyOperationApi.addLike(
-                                    type: reply.type,
-                                    oid: reply.oid,
-                                    rpid: reply.rpid,
-                                    likeOrUnlike: !reply.hasLike);
-                                if (result.isSuccess) {
-                                  reply.hasLike = !reply.hasLike;
-                                  if (reply.hasLike) {
-                                    reply.likeCount++;
-                                  } else {
-                                    reply.likeCount--;
-                                  }
-                                  setState(() {});
-                                } else {
-                                  Get.rawSnackbar(
-                                      message: '点赞失败:${result.error}');
-                                }
-                              } catch (e) {
-                                log(e.toString());
-                                Get.rawSnackbar(message: '$e');
-                              }
-                            },
-                          );
-                        }),
-                        Expanded(
-                          child: Builder(
-                            builder: (context) {
-                              List<Widget> list = [];
-                              if (reply.tags.isNotEmpty) {
-                                for (var i in reply.tags) {
-                                  list.add(
-                                    Text(
-                                      "$i ", //标签,如热评,up觉得很赞
-                                      maxLines: 1,
-                                      style: TextStyle(
-                                        overflow: TextOverflow.ellipsis,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  );
-                                }
-                                return Row(
-                                  children: list,
-                                );
-                              } else {
-                                return Container();
-                              }
-                            },
                           ),
                         ),
-                        Text(
-                          StringFormatUtils.timeStampToAgoDate(reply.replyTime),
-                          style: TextStyle(
-                              fontSize: 12, color: Theme.of(context).hintColor),
-                        )
-                      ],
-                    ),
-                    Builder(
-                      builder: (context) {
-                        Widget? subReplies;
-                        if (reply.replyCount != 0 && showPreReply == true) {
-                          List<Widget> preSubReplies = []; //预显示在外的楼中楼
-                          for (var j in reply.preReplies) {
-                            //添加预显示在外楼中楼评论条目
-                            preSubReplies.add(Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text.rich(
-                                  TextSpan(
-                                    children: [
-                                      TextSpan(
-                                        text: "${j.member.name}: ",
-                                      ),
-                                      buildReplyItemContent(j.content, context)
-                                    ],
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                )));
-                          }
-
-                          preSubReplies.add(Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              '共 ${StringFormatUtils.numFormat(reply.replyCount)} 条回复 >',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ));
-
-                          //预显示在外楼中楼控件
-                          subReplies = Container(
+                        Padding(
+                          padding: const EdgeInsets.only(
+                              top: 5, right: 10, left: 10),
+                          child:
+                              //评论内容
+                              //TODO: 有表情的评论暂时无法折叠
+                              (widget.reply.content.emotes.isNotEmpty ||
+                                      widget
+                                          .reply.content.pictures.isNotEmpty ||
+                                      widget.reply.content.jumpUrls.isNotEmpty)
+                                  ? SelectableText.rich(buildReplyItemContent(
+                                      widget.reply.content, context))
+                                  : SelectableRegion(
+                                      magnifierConfiguration:
+                                          const TextMagnifierConfiguration(),
+                                      focusNode: FocusNode(),
+                                      selectionControls:
+                                          MaterialTextSelectionControls(),
+                                      child: FoldableText.rich(
+                                        buildReplyItemContent(
+                                            widget.reply.content, context),
+                                        maxLines: 6,
+                                        folderTextStyle: TextStyle(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary),
+                                      )),
+                        ),
+                        Padding(
+                          padding:const EdgeInsets.only(top:0, bottom: 0,left: 5),
+                          child: Row(
+                            children: [
+                              StatefulBuilder(builder: (context, setState) {
+                                return ThumUpButton(
+                                  likeNum: widget.reply.likeCount,
+                                  selected: widget.reply.hasLike,
+                                  onPressed: () async {
+                                    try {
+                                      var result =
+                                          await ReplyOperationApi.addLike(
+                                              type: widget.reply.type,
+                                              oid: widget.reply.oid,
+                                              rpid: widget.reply.rpid,
+                                              likeOrUnlike:
+                                                  !widget.reply.hasLike);
+                                      if (result.isSuccess) {
+                                        widget.reply.hasLike =
+                                            !widget.reply.hasLike;
+                                        if (widget.reply.hasLike) {
+                                          widget.reply.likeCount++;
+                                        } else {
+                                          widget.reply.likeCount--;
+                                        }
+                                        setState(() {});
+                                      } else {
+                                        Get.rawSnackbar(
+                                            message: '点赞失败:${result.error}');
+                                      }
+                                    } catch (e) {
+                                      log(e.toString());
+                                      Get.rawSnackbar(message: '$e');
+                                    }
+                                  },
+                                );
+                              }),
+                              AddReplyButton(
+                                replyItem: widget.reply,
+                                updateWidget: () {
+                                  widget.reply.replyCount++;
+                                  setState(() => ());
+                                },
+                              ),
+                              Expanded(
+                                child: widget.reply.tags.isNotEmpty
+                                    ? Padding(
+                                        padding: EdgeInsets.only(left: 10),
+                                        child: Row(children: [
+                                          for (var i in widget.reply.tags)
+                                            Text("$i ", //标签,如热评,up觉得很赞
+                                                maxLines: 1,
+                                                style: TextStyle(
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .primary,
+                                                  fontSize: 14,
+                                                ))
+                                        ]),
+                                      )
+                                    : const SizedBox(),
+                              )
+                            ],
+                          ),
+                        ),
+                        if (widget.reply.replyCount != 0 &&
+                            widget.showPreReply == true)
+                          Container(
                               decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(8),
                                   color: Theme.of(context)
@@ -373,50 +360,69 @@ class ReplyItemWidget extends StatelessWidget {
                                   left: 8, right: 8, bottom: 8),
                               child: GestureDetector(
                                 child: ListView(
+                                  addAutomaticKeepAlives: false,
+                                  addRepaintBoundaries: false,
                                   padding: EdgeInsets.zero,
                                   shrinkWrap: true,
                                   physics: const NeverScrollableScrollPhysics(),
-                                  children: preSubReplies,
+                                  children: [
+                                    for (var j in widget.reply.preReplies)
+                                      //添加预显示在外楼中楼评论条目
+                                      Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 8),
+                                          child: Text.rich(
+                                            TextSpan(
+                                              children: [
+                                                TextSpan(
+                                                  text: "${j.member.name}: ",
+                                                ),
+                                                buildReplyItemContent(
+                                                    j.content, context)
+                                              ],
+                                            ),
+                                            style: TextStyle(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onPrimaryContainer
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          )),
+                                    if (widget.reply.replyCount > 3)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: Text(
+                                          '共 ${StringFormatUtils.numFormat(widget.reply.replyCount)} 条回复 >',
+                                          maxLines: 2,
+                                          style: TextStyle(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onPrimaryContainer
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      )
+                                  ],
                                 ),
                                 onTap: () {
                                   //楼中楼点击后弹出详细楼中楼
                                   Get.bottomSheet(
                                       ReplyReplyPage(
-                                        replyId: reply.oid.toString(),
-                                        replyType: reply.type,
-                                        rootId: reply.rpid,
-                                        pauseVideoCallback:
-                                            pauseVideoPlayer ?? () {},
+                                        replyId: widget.reply.oid.toString(),
+                                        replyType: widget.reply.type,
+                                        rootId: widget.reply.rpid,
                                       ),
                                       backgroundColor:
                                           Theme.of(context).cardColor,
                                       clipBehavior: Clip.antiAlias);
                                 },
-                              ));
-                        }
-                        return subReplies ?? const SizedBox();
-                      },
-                    )
-                  ]),
-            )
-          ],
-        ));
-  }
-}
-
-class UpperTag extends StatelessWidget {
-  const UpperTag({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Theme.of(context).colorScheme.secondary,
-      child: Text(
-        '  UP主  ',
-        style: TextStyle(
-            color: Theme.of(context).colorScheme.onSecondary,
-            fontSize: 10,
-            fontWeight: FontWeight.bold),
-      ),
+                              )),
+                      ]),
+                )
+              ],
+            )),
+      ],
     );
   }
 }
@@ -436,6 +442,9 @@ class ThumUpButton extends StatelessWidget {
     return ElevatedButton(
         onPressed: onPressed,
         style: ButtonStyle(
+          visualDensity: VisualDensity.comfortable,
+          padding: const MaterialStatePropertyAll(
+              EdgeInsets.all(5)),
           foregroundColor: selected == true
               ? MaterialStatePropertyAll(
                   Theme.of(context).colorScheme.onPrimary)
@@ -444,7 +453,7 @@ class ThumUpButton extends StatelessWidget {
               ? MaterialStatePropertyAll(Theme.of(context).colorScheme.primary)
               : null,
           elevation: const MaterialStatePropertyAll(0),
-          minimumSize: const MaterialStatePropertyAll(Size(10, 10)),
+          minimumSize: const MaterialStatePropertyAll(Size(10, 5)),
         ),
         child: Row(
           children: [
@@ -458,5 +467,37 @@ class ThumUpButton extends StatelessWidget {
             Text(StringFormatUtils.numFormat(likeNum))
           ],
         ));
+  }
+}
+
+///回复评论按钮
+class AddReplyButton extends StatelessWidget {
+  const AddReplyButton(
+      {super.key, required this.replyItem, required this.updateWidget});
+  final ReplyItem replyItem;
+  final Function() updateWidget;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconTextButton(
+      onPressed: () {
+        AddReplyUtil.showAddReplySheet(
+            replyType: replyItem.type,
+            oid: replyItem.oid.toString(),
+            root: replyItem.rootRpid,
+            parent: replyItem.rpid,
+            newReplyItems: replyItem.preReplies,
+            updateWidget: updateWidget,
+            scrollController: null);
+      },
+      icon: const Padding(
+        padding: EdgeInsets.all(2.0),
+        child: Icon(
+          Icons.reply,
+          size: 15,
+        ),
+      ),
+      text: null,
+    );
   }
 }

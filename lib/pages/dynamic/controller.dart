@@ -1,8 +1,8 @@
 import 'dart:developer';
 
 import 'package:bili_you/common/api/dynamic_api.dart';
+import 'package:bili_you/common/models/local/dynamic/dynamic_author.dart';
 import 'package:bili_you/common/models/local/dynamic/dynamic_item.dart';
-import 'package:bili_you/pages/dynamic/widget/dynamic_item_card.dart';
 import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -11,11 +11,10 @@ class DynamicController extends GetxController {
   DynamicController();
   EasyRefreshController refreshController = EasyRefreshController(
       controlFinishLoad: true, controlFinishRefresh: true);
-  // _initData() {
-  //   update(["dynamic"]);
-  // }
   int currentPage = 1;
-  List<DynamicItemCard> dynamicItemCards = [];
+  int authorFilterMid = -1;
+  List<DynamicItem> dynamicItems = [];
+  List<DynamicAuthor> dynamicAuthorList = [];
   ScrollController scrollController = ScrollController();
   void animateToTop() {
     scrollController.animateTo(0,
@@ -23,23 +22,34 @@ class DynamicController extends GetxController {
   }
 
   Future<bool> _loadDynamicItemCards() async {
+    //動態内容卡片
     late List<DynamicItem> items;
     try {
-      items = await DynamicApi.getDynamicItems(page: currentPage);
+      items = await DynamicApi.getDynamicItems(page: currentPage, mid: authorFilterMid);
     } catch (e) {
       log("_loadDynamicItemCards:$e");
       return false;
     }
-    for (var i in items) {
-      dynamicItemCards.add(DynamicItemCard(dynamicItem: i));
-    }
+    dynamicItems.addAll(items);
     if (items.isNotEmpty) {
       currentPage++;
     }
     return true;
   }
 
+  Future<bool> _loadAuthorList() async {
+    //動態up主
+    try {
+      dynamicAuthorList = await DynamicApi.getDynamicAuthorList();
+    } catch (e) {
+      log("_loadDynamicAuthorList:$e");
+      return false;
+    }
+    return true;
+  }
+
   void onLoad() async {
+    //加載更多
     if (await _loadDynamicItemCards()) {
       refreshController.finishLoad(IndicatorResult.success);
     } else {
@@ -48,31 +58,23 @@ class DynamicController extends GetxController {
   }
 
   void onRefresh() async {
-    dynamicItemCards.clear();
+    //刷新
+    dynamicItems.clear();
     currentPage = 1;
+    if (authorFilterMid == -1) {
+      await _loadAuthorList();
+      authorFilterMid = 0;
+    }
     if (await _loadDynamicItemCards()) {
       refreshController.finishRefresh(IndicatorResult.success);
     } else {
       refreshController.finishRefresh(IndicatorResult.fail);
     }
-    log(dynamicItemCards.length.toString());
   }
 
-  void onTap() {}
-
-  // @override
-  // void onInit() {
-  //   super.onInit();
-  // }
-
-  // @override
-  // void onReady() {
-  //   super.onReady();
-  //   _initData();
-  // }
-
-  // @override
-  // void onClose() {
-  //   super.onClose();
-  // }
+  void applyAuthorFilter(mid) {
+    //up主過濾
+    authorFilterMid = mid;
+    refreshController.callRefresh();
+  }
 }

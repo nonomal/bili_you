@@ -1,9 +1,8 @@
 import 'package:bili_you/common/api/api_constants.dart';
+import 'package:bili_you/common/api/wbi.dart';
 import 'package:bili_you/common/models/local/user_space/user_video_search.dart';
 import 'package:bili_you/common/models/network/user_space/user_video_search.dart';
-import 'package:bili_you/common/utils/my_dio.dart';
-import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:bili_you/common/utils/http_utils.dart';
 
 class UserSpaceApi {
   static Future<UserVideoSearchResponse> _requestUserVideoSearch({
@@ -11,24 +10,18 @@ class UserSpaceApi {
     required int pageNum,
     String? keyword,
   }) async {
-    var dio = MyDio.dio;
     //TODO order排序方式，tid分区筛选，keyword关键词筛选，ps每页项数，
-    var response = await dio.get(ApiConstants.userVideoSearch,
-        queryParameters: {
+    var response = await HttpUtils().get(ApiConstants.userVideoSearch,
+        queryParameters: await WbiSign.encodeParams({
           "mid": mid,
           "pn": pageNum,
           "ps": 30,
-          "keyword": keyword,
+          "keyword": keyword ?? "",
           "order": "pubdate",
           "tid": 0,
-        },
-        options: Options(headers: {
-          'user-agent': ApiConstants.userAgent,
+          "platform": "web",
         }));
-    var ret = await compute((message) async {
-      return UserVideoSearchResponse.fromJson(message);
-    }, response.data);
-    return ret;
+    return UserVideoSearchResponse.fromJson(response.data);
   }
 
   static Future<UserVideoSearch> getUserVideoSearch({

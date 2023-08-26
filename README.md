@@ -14,8 +14,6 @@
 
 ## 功能实现
 
-- [x] ~~短信登陆~~(不再维护)
-- [x] ~~账号密码登陆~~(不再维护)
 - [x] 主页视频推荐
 - [x] 视频搜索
 - [x] 评论区
@@ -58,5 +56,6 @@ Discord：[https://discord.gg/tsFh7Hdb4s](https://discord.gg/tsFh7Hdb4s)
 
 ## 感谢
 
-- [bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect): 哔哩哔哩API收集，感谢@SocialSisterYi及各位贡献者的维护！
+- [bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect): 哔哩哔哩API收集，感谢@SocialSisterYi及各位贡献者的维护！  
 - [flutter_ns_danmaku](https://github.com/xiaoyaocz/flutter_ns_danmaku): @xiaoyaocz大佬制作的flutter弹幕插件，非常感谢!  
+- [media_kit](https://github.com/alexmercerind/media_kit): 感谢@alexmercerind大佬制作的media_kit播放器!  

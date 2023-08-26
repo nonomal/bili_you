@@ -1,4 +1,8 @@
 import 'package:bili_you/common/widget/cached_network_image.dart';
+import 'package:bili_you/pages/live_tab_page/controller.dart';
+import 'package:bili_you/pages/live_tab_page/view.dart';
+import 'package:bili_you/pages/popular_video/controller.dart';
+import 'package:bili_you/pages/popular_video/view.dart';
 import 'package:bili_you/pages/recommend/controller.dart';
 import 'package:bili_you/pages/search_input/index.dart';
 import 'package:bili_you/pages/ui_test/index.dart';
@@ -21,20 +25,23 @@ class _HomePageState extends State<HomePage>
   bool get wantKeepAlive => true;
   late HomeController controller;
   final RecommendPage recommendPage = const RecommendPage();
+  final PopularVideoPage popularVideoPage = const PopularVideoPage();
+  final LiveTabPage liveTabPage = const LiveTabPage();
   List<Map<String, dynamic>> tabsList = [];
 
   @override
   void initState() {
     controller = Get.put(HomeController());
     tabsList = controller.tabsList;
-    controller.tabController = TabController(length: tabsList.length, vsync: this, initialIndex: controller.tabInitIndex);
+    controller.tabController = TabController(
+        length: tabsList.length,
+        vsync: this,
+        initialIndex: controller.tabInitIndex);
     super.initState();
   }
 
   @override
   void dispose() {
-    // controller.onClose();
-    // controller.onDelete();
     controller.dispose();
     super.dispose();
   }
@@ -52,12 +59,6 @@ class _HomePageState extends State<HomePage>
                 .push(GetPageRoute(page: () => const UiTestPage()));
           },
           onPressed: () {
-            //跳转到搜索页面
-            // Get.to(() => SearchInputPage(
-            //       key: ValueKey(
-            //           'SearchInputPage:${controller.defaultSearchWord.value}'),
-            //       defaultSearchWord: controller.defaultSearchWord.value,
-            //     ));
             Navigator.of(context).push(GetPageRoute(
                 page: () => SearchInputPage(
                       key: ValueKey(
@@ -146,9 +147,20 @@ class _HomePageState extends State<HomePage>
           tabs: tabsList.map((e) => Tab(text: e['text'])).toList(),
           controller: controller.tabController,
           onTap: (index) {
-            //点击“推荐”回到顶
-            if (index == 1 && !controller.tabController!.indexIsChanging) {
-              Get.find<RecommendController>().animateToTop();
+            if (controller.tabController!.indexIsChanging) return;
+            switch (index) {
+              case 0:
+                //点击“直播”回到顶
+                Get.find<LiveTabPageController>().animateToTop();
+                break;
+              case 1:
+                //点击“推荐”回到顶
+                Get.find<RecommendController>().animateToTop();
+                break;
+              case 2:
+                Get.find<PopularVideoController>().animateToTop();
+                break;
+              default:
             }
           },
         ),
@@ -156,9 +168,16 @@ class _HomePageState extends State<HomePage>
       body: TabBarView(
         controller: controller.tabController,
         children: tabsList.map((e) {
-          return tabsList.indexOf(e) == 1
-              ? recommendPage
-              : const Center(child: Text("该功能暂无"));
+          switch (e['text']) {
+            case '直播':
+              return liveTabPage;
+            case '推荐':
+              return recommendPage;
+            case '热门':
+              return popularVideoPage;
+            default:
+              return const Center(child: Text("该功能暂无"));
+          }
         }).toList(),
       ),
     );

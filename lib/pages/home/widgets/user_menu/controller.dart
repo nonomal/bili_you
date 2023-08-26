@@ -4,15 +4,15 @@ import 'package:bili_you/common/api/index.dart';
 import 'package:bili_you/common/models/local/login/login_user_info.dart';
 import 'package:bili_you/common/models/local/login/login_user_stat.dart';
 import 'package:bili_you/common/utils/bili_you_storage.dart';
-import 'package:bili_you/common/utils/my_dio.dart';
-import 'package:bili_you/common/values/cache_keys.dart';
+import 'package:bili_you/common/utils/http_utils.dart';
+import 'package:bili_you/common/utils/cache_util.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import 'package:get/get.dart';
 
 class UserMenuController extends GetxController {
   UserMenuController();
-  CacheManager cacheManager = CacheManager(Config(CacheKeys.userFaceKey));
+  CacheManager cacheManager = CacheUtils.userFaceCacheManager;
   RxString faceUrl = ApiConstants.noface.obs;
   RxString name = '游客'.obs;
   RxInt level = 0.obs;
@@ -22,9 +22,11 @@ class UserMenuController extends GetxController {
   RxInt followingCount = 0.obs;
   RxInt followerCount = 0.obs;
 
+  RxBool islogin_ = false.obs;
+
   late LoginUserInfo userInfo;
   late LoginUserStat userStat;
-
+//用戶信息
   _initData() async {
     try {
       userInfo = await LoginApi.getLoginUserInfo();
@@ -37,6 +39,7 @@ class UserMenuController extends GetxController {
       dynamicCount.value = userStat.dynamicCount;
       followerCount.value = userStat.followerCount;
       followingCount.value = userStat.followingCount;
+      islogin_.value = true;
     } catch (e) {
       log(e.toString());
     }
@@ -52,7 +55,11 @@ class UserMenuController extends GetxController {
   // }
   Future<void> loadOldFace() async {
     var box = BiliYouStorage.user;
-    faceUrl.value = box.get("userFace") ?? ApiConstants.noface;
+    if (!await hasLogin()) {
+      faceUrl.value = ApiConstants.noface;
+    } else {
+      faceUrl.value = box.get("userFace") ?? ApiConstants.noface;
+    }
     return;
   }
 
@@ -72,15 +79,16 @@ class UserMenuController extends GetxController {
     super.onReady();
     _initData();
   }
-
+//登出
   onLogout() async {
-    MyDio.cookieManager.cookieJar.deleteAll();
+    HttpUtils.cookieManager.cookieJar.deleteAll();
     resetRX();
     var box = BiliYouStorage.user;
     box.put(UserStorageKeys.hasLogin, false);
     cacheManager.emptyCache();
+    islogin_.value = false;
   }
-
+//檢查用戶是否登錄
   Future<bool> hasLogin() async {
     return BiliYouStorage.user.get(UserStorageKeys.hasLogin) ?? false;
   }

@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:auto_orientation/auto_orientation.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/services.dart';
 
@@ -11,7 +14,9 @@ Future<void> enterFullScreen() async {
 //退出全屏显示
 Future<void> exitFullScreen() async {
   late SystemUiMode mode;
-  if ((await DeviceInfoPlugin().androidInfo).version.sdkInt >= 29) {
+  if ((Platform.isAndroid &&
+          (await DeviceInfoPlugin().androidInfo).version.sdkInt >= 29) ||
+      !Platform.isAndroid) {
     mode = SystemUiMode.edgeToEdge;
   } else {
     mode = SystemUiMode.manual;
@@ -22,8 +27,9 @@ Future<void> exitFullScreen() async {
 
 //横屏
 Future<void> landScape() async {
-  await SystemChrome.setPreferredOrientations(
-      [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+  if (Platform.isAndroid || Platform.isIOS) {
+    await AutoOrientation.landscapeAutoMode(forceSensor: true);
+  }
 }
 
 //竖屏

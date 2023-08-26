@@ -1,5 +1,7 @@
+import 'package:bili_you/common/utils/string_format_utils.dart';
+import 'package:bili_you/common/values/hero_tag_id.dart';
 import 'package:bili_you/common/widget/simple_easy_refresher.dart';
-// import 'package:pull_to_refresh/pull_to_refresh.dart';
+import 'package:bili_you/pages/recommend/widgets/recommend_card.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'index.dart';
@@ -24,8 +26,6 @@ class _RecommendPageState extends State<RecommendPage>
 
   @override
   void dispose() {
-    // controller.onClose();
-    // controller.onDelete();
     controller.dispose();
     super.dispose();
   }
@@ -39,19 +39,31 @@ class _RecommendPageState extends State<RecommendPage>
       childBuilder: (context, physics) => GridView.builder(
         controller: controller.scrollController,
         physics: physics,
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(12),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
             crossAxisCount: controller.recommendColumnCount,
             mainAxisExtent: (MediaQuery.of(context).size.width /
                         controller.recommendColumnCount) *
                     10 /
                     16 +
                 83 * MediaQuery.of(context).textScaleFactor),
-        itemCount: controller.recommendViewList.length,
+        itemCount: controller.recommendItems.length,
         itemBuilder: (context, index) {
-          return controller.recommendViewList[index];
+          var i = controller.recommendItems[index];
+          return RecommendCard(
+              key: ValueKey("${i.bvid}:RecommendCard"),
+              heroTagId: HeroTagId.id++,
+              cacheManager: controller.cacheManager,
+              imageUrl: i.coverUrl,
+              playNum: StringFormatUtils.numFormat(i.playNum),
+              danmakuNum: StringFormatUtils.numFormat(i.danmakuNum),
+              timeLength: StringFormatUtils.timeLengthFormat(i.timeLength),
+              title: i.title,
+              upName: i.upName,
+              bvid: i.bvid,
+              cid: i.cid);
         },
       ),
     );
